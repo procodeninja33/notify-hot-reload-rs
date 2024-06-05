@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 const CONFIG_PATH: &str = "config.toml";
 
 fn main() -> anyhow::Result<()> {
-    let config = load_config(CONFIG_PATH).unwrap();
+    let config = load_config(CONFIG_PATH).expect("Unable to load config");
 
     // We wrap the data a mutex under an atomic reference counted pointer
     // to guarantee that the config won't be read and written to at the same time.
@@ -20,13 +20,13 @@ fn main() -> anyhow::Result<()> {
         // To make sure that the config lives as long as the function
         // we need to move the ownership of the config inside the function
         RecommendedWatcher::new(move |result: Result<Event, Error>| {
-            let event = result.unwrap();
+            let event = result.expect("Unable to watch modified event");
 
             if event.kind.is_modify() {
                 println!("something is modified");
                 match load_config(CONFIG_PATH) {
-                    Ok(new_config) => *cloned_config.lock().unwrap() = new_config,
-                    Err(error) => println!("Error reloading config: {:?}", error),
+                    Ok(new_config) => *cloned_config.lock().unwrap() = new_config, // Safety
+                    Err(error) => eprint!("Error reloading config: {:?}", error),
                 }
             }
         },notify::Config::default())?;
@@ -55,8 +55,7 @@ pub struct Message {
 }
 
 pub fn load_config(path: &str) -> Result<Config, Box<dyn std::error::Error>> {
-    let config: Config =
-        toml_edit::easy::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    let config: Config = toml_edit::easy::from_str(&std::fs::read_to_string(path)?)?;
     println!("new config: {:?}", config);
     Ok(config)
 }
